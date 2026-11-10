@@ -44,6 +44,7 @@
 #include "G4NuclearLevelStore.hh"
 #include "G4Ions.hh"
 #include "G4IonTable.hh"
+#include "G4BiasingProcessInterface.hh" // edited by Andrea Frassà, 11/10/26
 
 // MEGAlib
 #include "MStreams.h"
@@ -54,6 +55,7 @@
 // Standard lib:
 #include <cmath>
 #include <iomanip>
+#include <sstream> // edited by Andrea Frassà, 11/10/26
 #include <algorithm>
 #include <functional>
 using namespace std;
@@ -109,6 +111,8 @@ MCSteppingAction::MCSteppingAction(MCParameterFile& RunParameters) :
   m_DetectorTimeConstant = RunParameters.GetDetectorTimeConstant();
   
   m_Regions = RunParameters.GetRegionList();
+
+  m_UsesForcedFirstInteraction = RunParameters.UsesForcedFirstInteraction(); // edited by Andrea Frassà, 11/10/26
   
   m_KnownProcess.push_back("polarLowEnCompt"); m_KnownProcessID.push_back(c_ProcessIDCompton);
   m_KnownProcess.push_back("PenCompton"); m_KnownProcessID.push_back(c_ProcessIDCompton);
@@ -286,9 +290,42 @@ void MCSteppingAction::UserSteppingAction(const G4Step* Step)
     return;
   }
 
+  // edited by Andrea Frassà, 11/10/26: forced first interaction mode -->
+  // If the first interaction of this track has just been forced, store the result
+  // as comment (CC) line in the event:
+  // CC ForcedFirstInteraction <OriginId> <Forced> <OK|FAILED> <Natural> <Weight>
+  //   OriginId: ID of the primary (as in the INIT line), Forced: the forced IA type,
+  //   Natural: the IA type Geant4 originally selected, Weight: sigma_forced/sigma_total
+  //   at the interaction point (0 if FAILED, i.e. the event is analog)
+  {
+    MCTrackInformation* ForcedInfo = (MCTrackInformation*) Track->GetUserInformation();
+    if (ForcedInfo->HasForcedFirstInteractionReport() == true) {
+      ostringstream Report;
+      Report<<"ForcedFirstInteraction "<<ForcedInfo->GetOriginId()<<" "
+            <<MCSource::GetForcedFirstInteractionAsString(ForcedInfo->GetForcedFirstInteractionProcessID())<<" "
+            <<(ForcedInfo->WasForcedFirstInteractionApplied() == true ? "OK" : "FAILED")<<" "
+            <<MCSource::GetForcedFirstInteractionAsString(ForcedInfo->GetForcedFirstInteractionNaturalProcessID())<<" "
+            <<scientific<<setprecision(6)<<ForcedInfo->GetForcedFirstInteractionWeight();
+      EventAction->AddComment(Report.str());
+      ForcedInfo->ClearForcedFirstInteractionReport();
+    }
+  }
+  // <-- edited by Andrea Frassà, 11/10/26
+
   // Prepare the IA interactions:
   if (Step->GetPostStepPoint()->GetProcessDefinedStep() != 0) {
-    G4String ProcessName = Step->GetPostStepPoint()->GetProcessDefinedStep()->GetProcessName();
+    // edited by Andrea Frassà, 11/10/26: forced first interaction mode -->
+    // With the forced first interaction mode, the gamma processes are wrapped by Geant4 
+    // biasing interfaces, which are called "biasWrapper(compt)" etc. Use the wrapped (real) process.
+    const G4VProcess* DefinedStepProcess = Step->GetPostStepPoint()->GetProcessDefinedStep();
+    if (m_UsesForcedFirstInteraction == true) { // avoid the dynamic_cast in normal mode
+      const G4BiasingProcessInterface* BiasingWrapper = dynamic_cast<const G4BiasingProcessInterface*>(DefinedStepProcess);
+      if (BiasingWrapper != nullptr && BiasingWrapper->GetWrappedProcess() != nullptr) {
+        DefinedStepProcess = BiasingWrapper->GetWrappedProcess();
+      }
+    }
+    G4String ProcessName = DefinedStepProcess->GetProcessName();
+    // <-- edited by Andrea Frassà, 11/10/26
     int ProcessID = GetProcessId(ProcessName);
 
       /*

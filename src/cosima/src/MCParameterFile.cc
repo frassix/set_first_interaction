@@ -2233,6 +2233,27 @@ bool MCParameterFile::Parse()
       } 
       
       
+      // edited by Andrea Frassà, 11/10/26: forced first interaction mode -->
+      else if (T->IsTokenAt(1, "ForceFirstInteraction", true) == true) {
+        if (T->GetNTokens() == 3) {
+          if (Source->SetForcedFirstInteraction(T->GetTokenAtAsString(2)) == true) {
+            mdebug<<"Setting forced first interaction "
+                  <<MCSource::GetForcedFirstInteractionAsString(Source->GetForcedFirstInteraction())
+                  <<" for source "<<Source->GetName()<<endl;
+          } else {
+            Typo(i, "Cannot parse token ForceFirstInteraction correctly:"
+                 " Allowed are COMP, PHOT, PAIR, RAYL, NONE");
+            return false;
+          }
+        } else {
+          Typo(i, "Cannot parse token ForceFirstInteraction correctly:"
+               " Number of tokens is not correct!");
+          return false;
+        }
+      } 
+      // <-- edited by Andrea Frassà, 11/10/26
+      
+      
       else if (T->IsTokenAt(1, "IsSuccessor", true) == true) {
         if (T->GetNTokens() == 3) {
           if (Source->SetIsSuccessor(T->GetTokenAtAsBoolean(2)) == true) {
@@ -2924,6 +2945,29 @@ bool MCParameterFile::Parse()
     }
   }
 
+  // edited by Andrea Frassà, 11/10/26: forced first interaction mode -->
+  // Sanity checks for the forced first interaction:
+  // (1) only gammas are supported: for charged particles the "first interaction" is ill-defined,
+  // (2) we need an EM physics list
+  for (unsigned int r = 0; r < m_RunList.size(); ++r) {
+    vector<MCSource*>& Sources = m_RunList[r].GetSourceList();
+    for (unsigned int so = 0; so < Sources.size(); ++so) {
+      if (Sources[so]->HasForcedFirstInteraction() == false) continue;
+      if (Sources[so]->GetParticleType() != MCSource::c_Gamma) {
+        mout<<"The source "<<Sources[so]->GetName()<<" uses ForceFirstInteraction, but this mode is only available for gamma rays (ParticleType 1)!"<<endl;
+        return false;
+      }
+      if (m_PhysicsListEM == MCPhysicsList::c_EMNone) {
+        mout<<"The source "<<Sources[so]->GetName()<<" uses ForceFirstInteraction, but no EM physics list is selected!"<<endl;
+        return false;
+      }
+      mout<<"Source "<<Sources[so]->GetName()<<": the first interaction of each primary is forced to be "
+          <<MCSource::GetForcedFirstInteractionAsString(Sources[so]->GetForcedFirstInteraction())
+          <<" (weight sigma_forced/sigma_total is stored as CC line)"<<endl;
+    }
+  }
+  // <-- edited by Andrea Frassà, 11/10/26
+
   // Check if each region has a volume and a cut:
   for (unsigned int r = 0; r < m_RegionList.size(); ++r) {
     if (m_RegionList[r].GetVolumeName() == g_StringNotDefined) {
@@ -3100,6 +3144,23 @@ MCSource* MCParameterFile::GetSource(MString Name)
   }
 
   return 0;
+}
+
+
+/******************************************************************************
+ * Return true if any source of any run forces its first interaction
+ * edited by Andrea Frassà, 11/10/26
+ */
+bool MCParameterFile::UsesForcedFirstInteraction()
+{
+  for (unsigned int r = 0; r < m_RunList.size(); ++r) {
+    vector<MCSource*>& Sources = m_RunList[r].GetSourceList();
+    for (unsigned int so = 0; so < Sources.size(); ++so) {
+      if (Sources[so]->HasForcedFirstInteraction() == true) return true;
+    }
+  }
+
+  return false;
 }
 
 

@@ -45,6 +45,7 @@
 // Forward declarations:
 class G4VPhysicalVolume;
 class MDVolume;
+class MCForcedFirstInteractionOperator; // edited by Andrea Frassà, 11/10/26
 
 /******************************************************************************/
 
@@ -62,6 +63,10 @@ public:
   
   /// Construct()-method from derived class - called by Geant4
   G4VPhysicalVolume* Construct();
+
+  /// ConstructSDandField()-method from derived class - called by Geant4 after Construct()
+  /// Used to attach the biasing operator of the forced first interaction mode (edited by Andrea Frassà, 11/10/26)
+  virtual void ConstructSDandField();
 
   /// Return true if the volume is valid volume in the geometry
   bool IsValidVolume(MString VolumeName);
@@ -115,6 +120,9 @@ private:
 
   /// The mother volume
   G4VPhysicalVolume* m_WorldVolume;
+
+  /// The biasing operator of the forced first interaction mode (edited by Andrea Frassà, 11/10/26)
+  MCForcedFirstInteractionOperator* m_ForcedFirstInteractionOperator;
 };
 
 #endif

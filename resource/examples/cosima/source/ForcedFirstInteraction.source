@@ -1,0 +1,37 @@
+# This example shows the forced first interaction mode
+# (edited by Andrea Frassà, 11/10/26)
+#
+# The first interaction of each primary gamma of the source MyForcedSource is
+# forced to be a photo absorption (PHOT). Where it interacts is NOT changed,
+# and all following interactions (and all secondaries) are analog.
+# Allowed values: COMP, PHOT, PAIR, RAYL
+#
+# Each forced event contains a comment line:
+# CC ForcedFirstInteraction <PrimaryID> <Forced> <OK|FAILED> <NaturalProcess> <Weight>
+# with Weight = sigma_forced / sigma_total at the first interaction point
+
+
+# Global parameters:
+Version               1
+Geometry              $(MEGALIB)/resource/examples/geomega/special/Spheric.geo.setup
+
+# Physics list
+PhysicsListEM                        LivermorePol
+
+# Output formats
+StoreSimulationInfo                  all
+
+
+
+# Run: 10 MeV pencil beam, first interaction always a photo absorption
+
+Run MyForcedRun
+MyForcedRun.FileName                      ForcedFirstInteraction
+MyForcedRun.Events                        10000
+
+MyForcedRun.Source MyForcedSource
+MyForcedSource.ParticleType               1
+MyForcedSource.Beam                       FarFieldPointSource  0 0
+MyForcedSource.Spectrum                   Mono 10000.0
+MyForcedSource.Flux                       1.0
+MyForcedSource.ForceFirstInteraction      PHOT

@@ -37,6 +37,7 @@ using namespace std;
 #include "MCEventAction.hh"
 #include "MCRegion.hh"
 #include "MCGeometryConverter.hh"
+#include "MCForcedFirstInteractionOperator.hh" // edited by Andrea Frassà, 11/10/26
 
 // Geant4:
 #include "G4SystemOfUnits.hh"
@@ -109,7 +110,8 @@ using namespace std;
  * Default constructor
  */
 MCDetectorConstruction::MCDetectorConstruction(MCParameterFile& RunParameters) 
-  : m_RunParameters(RunParameters), m_WorldVolume(0)
+  : m_RunParameters(RunParameters), m_WorldVolume(0), 
+    m_ForcedFirstInteractionOperator(nullptr) // edited by Andrea Frassà, 11/10/26
 {
   // Intentionally left blank
 }
@@ -137,6 +139,26 @@ G4VPhysicalVolume* MCDetectorConstruction::Construct()
   }
 
   return m_WorldVolume;
+}
+
+
+/******************************************************************************
+ * Default Geant4 ConstructSDandField Method, called by Geant4 after Construct()
+ * Sensitive detectors are created in ConstructDetectors(), thus here we only 
+ * attach the biasing operator for the forced first interaction mode. It must be 
+ * attached to ALL logical volumes, since the first interaction can happen anywhere
+ * edited by Andrea Frassà, 11/10/26
+ */
+void MCDetectorConstruction::ConstructSDandField()
+{
+  if (m_RunParameters.UsesForcedFirstInteraction() == true) {
+    // Geant4 keeps track of all operators internally, thus this is never deleted (same as in the Geant4 examples)
+    // Create it only once, in case the geometry is initialized multiple times
+    if (m_ForcedFirstInteractionOperator == nullptr) {
+      m_ForcedFirstInteractionOperator = new MCForcedFirstInteractionOperator();
+    }
+    m_ForcedFirstInteractionOperator->AttachToAllVolumes();
+  }
 }
 
 
