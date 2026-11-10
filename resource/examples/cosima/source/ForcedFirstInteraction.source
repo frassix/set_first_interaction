@@ -1,14 +1,16 @@
-# This example shows the forced first interaction mode
+# This example shows the forced first interaction mode 
 # (edited by Andrea Frassà, 11/10/26)
 #
-# The first interaction of each primary gamma of the source MyForcedSource is
-# forced to be a photo absorption (PHOT). Where it interacts is NOT changed,
-# and all following interactions (and all secondaries) are analog.
+# The first interaction of each primary gamma of the source MyForcedSource is 
+# forced to be a photo absorption (PHOT). The interaction point is sampled from
+# sigma_PHOT(x) * exp(-integral sigma_total) along the straight path of the photon,
+# i.e. it is where a real first photo absorption would be. All following 
+# interactions (and all secondaries) are analog.
 # Allowed values: COMP, PHOT, PAIR, RAYL
 #
 # Each forced event contains a comment line:
-# CC ForcedFirstInteraction <PrimaryID> <Forced> <OK|FAILED> <NaturalProcess> <Weight>
-# with Weight = sigma_forced / sigma_total at the first interaction point
+# CC ForcedFirstInteraction <PrimaryID> <Forced> <OK|FAILED> <Weight>
+# with Weight = probability that the first interaction of this photon is of the forced type
 
 
 # Global parameters:
@@ -23,7 +25,9 @@ StoreSimulationInfo                  all
 
 
 
-# Run: 10 MeV pencil beam, first interaction always a photo absorption
+# Run: 10 MeV narrow beam (radius 1 mm) aimed at the sphere, first interaction always a photo absorption
+# A narrow beam has (almost) the same path for all photons, thus the weights are (almost) identical
+# and unweighted distributions are already correct. For extended beams always use the weight!
 
 Run MyForcedRun
 MyForcedRun.FileName                      ForcedFirstInteraction
@@ -31,7 +35,7 @@ MyForcedRun.Events                        10000
 
 MyForcedRun.Source MyForcedSource
 MyForcedSource.ParticleType               1
-MyForcedSource.Beam                       FarFieldPointSource  0 0
+MyForcedSource.Beam                       HomogeneousBeam  0 0 90  0 0 -1  0.1
 MyForcedSource.Spectrum                   Mono 10000.0
 MyForcedSource.Flux                       1.0
 MyForcedSource.ForceFirstInteraction      PHOT

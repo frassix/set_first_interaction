@@ -293,10 +293,10 @@ void MCSteppingAction::UserSteppingAction(const G4Step* Step)
   // edited by Andrea Frassà, 11/10/26: forced first interaction mode -->
   // If the first interaction of this track has just been forced, store the result
   // as comment (CC) line in the event:
-  // CC ForcedFirstInteraction <OriginId> <Forced> <OK|FAILED> <Natural> <Weight>
+  // CC ForcedFirstInteraction <OriginId> <Forced> <OK|FAILED> <Weight>
   //   OriginId: ID of the primary (as in the INIT line), Forced: the forced IA type,
-  //   Natural: the IA type Geant4 originally selected, Weight: sigma_forced/sigma_total
-  //   at the interaction point (0 if FAILED, i.e. the event is analog)
+  //   Weight: probability that the first interaction of this primary along its path 
+  //   is of the forced type (0 if FAILED, i.e. the primary is simulated analog)
   {
     MCTrackInformation* ForcedInfo = (MCTrackInformation*) Track->GetUserInformation();
     if (ForcedInfo->HasForcedFirstInteractionReport() == true) {
@@ -304,7 +304,6 @@ void MCSteppingAction::UserSteppingAction(const G4Step* Step)
       Report<<"ForcedFirstInteraction "<<ForcedInfo->GetOriginId()<<" "
             <<MCSource::GetForcedFirstInteractionAsString(ForcedInfo->GetForcedFirstInteractionProcessID())<<" "
             <<(ForcedInfo->WasForcedFirstInteractionApplied() == true ? "OK" : "FAILED")<<" "
-            <<MCSource::GetForcedFirstInteractionAsString(ForcedInfo->GetForcedFirstInteractionNaturalProcessID())<<" "
             <<scientific<<setprecision(6)<<ForcedInfo->GetForcedFirstInteractionWeight();
       EventAction->AddComment(Report.str());
       ForcedInfo->ClearForcedFirstInteractionReport();
