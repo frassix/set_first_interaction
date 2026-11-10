@@ -30,8 +30,8 @@ MCTrackInformation::MCTrackInformation()
   : m_IsDigitized(false), m_Id(-1), m_OriginId(-1),
     // edited by Andrea Frassà, 11/10/26: by default nothing is forced
     m_ForcedFirstInteractionPending(false), m_ForcedFirstInteractionProcessID(-1),
-    m_ForcedFirstInteractionReportPending(false), m_ForcedFirstInteractionApplied(false),
-    m_ForcedFirstInteractionWeight(0.0), m_ForcedFirstInteractionNaturalProcessID(-1)
+    m_ForcedFirstInteractionDistance(-1.0), m_ForcedFirstInteractionReportPending(false), 
+    m_ForcedFirstInteractionApplied(false), m_ForcedFirstInteractionWeight(0.0)
 {
   // Intentionally left blank
 }
@@ -45,8 +45,8 @@ MCTrackInformation::MCTrackInformation(int Id, int OriginId)
     // edited by Andrea Frassà, 11/10/26: by default nothing is forced 
     // (this constructor is used for all secondaries, thus they are never forced)
     m_ForcedFirstInteractionPending(false), m_ForcedFirstInteractionProcessID(-1),
-    m_ForcedFirstInteractionReportPending(false), m_ForcedFirstInteractionApplied(false),
-    m_ForcedFirstInteractionWeight(0.0), m_ForcedFirstInteractionNaturalProcessID(-1)
+    m_ForcedFirstInteractionDistance(-1.0), m_ForcedFirstInteractionReportPending(false), 
+    m_ForcedFirstInteractionApplied(false), m_ForcedFirstInteractionWeight(0.0)
 {
   // Intentionally left blank
 }
@@ -124,25 +124,35 @@ void MCTrackInformation::ArmForcedFirstInteraction(const int ForcedProcessID)
 {
   m_ForcedFirstInteractionPending = true;
   m_ForcedFirstInteractionProcessID = ForcedProcessID;
+  m_ForcedFirstInteractionDistance = -1.0;
   m_ForcedFirstInteractionReportPending = false;
   m_ForcedFirstInteractionApplied = false;
   m_ForcedFirstInteractionWeight = 0.0;
-  m_ForcedFirstInteractionNaturalProcessID = -1;
 }
 
 
 /******************************************************************************
- * Disarm the forcing after the first interaction happened 
- * and remember the result until it is reported 
+ * Set the sampled first interaction point (distance along the path) and the 
+ * probability that the first interaction along this path is of the forced type
  * edited by Andrea Frassà, 11/10/26
  */
-void MCTrackInformation::SetForcedFirstInteractionDone(const bool IsForced, const double Weight, const int NaturalProcessID)
+void MCTrackInformation::SetForcedFirstInteractionPoint(const double Distance, const double Weight)
+{
+  m_ForcedFirstInteractionDistance = Distance;
+  m_ForcedFirstInteractionWeight = Weight;
+}
+
+
+/******************************************************************************
+ * Disarm the forcing and remember the result until it is reported 
+ * edited by Andrea Frassà, 11/10/26
+ */
+void MCTrackInformation::SetForcedFirstInteractionDone(const bool IsForced)
 {
   m_ForcedFirstInteractionPending = false;
   m_ForcedFirstInteractionReportPending = true;
   m_ForcedFirstInteractionApplied = IsForced;
-  m_ForcedFirstInteractionWeight = Weight;
-  m_ForcedFirstInteractionNaturalProcessID = NaturalProcessID;
+  if (IsForced == false) m_ForcedFirstInteractionWeight = 0.0;
 }
 
 

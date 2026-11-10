@@ -2963,7 +2963,7 @@ bool MCParameterFile::Parse()
       }
       mout<<"Source "<<Sources[so]->GetName()<<": the first interaction of each primary is forced to be "
           <<MCSource::GetForcedFirstInteractionAsString(Sources[so]->GetForcedFirstInteraction())
-          <<" (weight sigma_forced/sigma_total is stored as CC line)"<<endl;
+          <<" (the interaction point is sampled from sigma_forced(x)*exp(-integral sigma_total), the weight is stored as CC line)"<<endl;
     }
   }
   // <-- edited by Andrea Frassà, 11/10/26

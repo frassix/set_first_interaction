@@ -25,22 +25,15 @@
  * Geant4 generic biasing operation (final state biasing) for the forced first
  * interaction mode:
  *
- * When a tagged primary undergoes its first discrete interaction, Geant4 has
- * already selected WHERE (sampled from the natural total cross section) and
- * WHICH process (natural process) interacts. This operation keeps the location,
- * but replaces the final state of the natural process by the final state of the
- * forced process (its real PostStepDoIt, i.e. the real Geant4 model).
+ * The armed primary has been transported to its pre-sampled first interaction
+ * point (see MCForcedFirstInteractionOperator and MCForcedFirstInteractionFlight),
+ * where the forced process is the only one which can interact. This operation
+ * lets the forced process generate its real (analog) final state, and disarms
+ * the track: all following interactions are analog.
  *
- * It also computes the weight w = sigma_forced / sigma_total at the interaction
- * point, i.e. the probability that the first interaction would have been of the
- * forced type in an analog simulation.
- *
- * If the forced process is not possible at this point (sigma_forced == 0, e.g.
- * PAIR below threshold), the natural final state is used and the forcing is
- * reported as failed.
- *
- * In all cases the track is disarmed afterwards: all following interactions
- * are analog.
+ * If the forced process is not possible at this point (sigma_forced == 0, only
+ * possible by rounding on a boundary), nothing happens and the primary
+ * continues analog (reported as FAILED).
  *
  * edited by Andrea Frassà, 11/10/26: new class (forced first interaction mode)
  *
@@ -52,6 +45,7 @@
 // Geant4:
 #include "globals.hh"
 #include "G4VBiasingOperation.hh"
+#include "G4ParticleChange.hh"
 
 
 /******************************************************************************/
@@ -65,13 +59,13 @@ public:
   /// Default destructor
   virtual ~MCForcedFirstInteractionOperation();
 
-  /// Apply the forcing: replace the final state of the natural process by the forced one
+  /// Apply the forcing: let the forced process generate its real final state and disarm the track
   virtual G4VParticleChange* ApplyFinalStateBiasing(const G4BiasingProcessInterface* CallingProcess,
                                                     const G4Track* Track,
                                                     const G4Step* Step,
                                                     G4bool& ForceBiasedFinalState);
 
-  /// Not used: no occurrence biasing (the interaction location stays analog)
+  /// Not used: the occurrence biasing is done by MCForcedFirstInteractionFlight
   virtual const G4VBiasingInteractionLaw* ProvideOccurenceBiasingInteractionLaw(const G4BiasingProcessInterface* CallingProcess,
                                                                                 G4ForceCondition& ProposeForceCondition);
   /// Not used: no non-physics biasing
@@ -97,8 +91,10 @@ protected:
 
   // private members:
 private:
-  /// Counter of failed forcings (sigma_forced == 0) - for a warning only
+  /// Counter of failed forcings - for a warning only
   long m_NFailed;
+  /// Particle change for "nothing happens"
+  G4ParticleChange m_ParticleChange;
 };
 
 #endif

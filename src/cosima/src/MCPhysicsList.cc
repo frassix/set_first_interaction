@@ -184,7 +184,8 @@ void MCPhysicsList::Register()
 
   // edited by Andrea Frassà, 11/10/26: forced first interaction mode -->
   // Wrap all physics processes of gammas into Geant4 biasing interfaces, which allows 
-  // MCForcedFirstInteractionOperator to replace the final state of the first interaction.
+  // MCForcedFirstInteractionOperator to control where the first interaction happens 
+  // and which process it is.
   // This must be the LAST registered physics, since it wraps the already existing processes.
   // As long as no operator proposes an operation, the wrapped processes behave exactly analog.
   if (m_UsesForcedFirstInteraction == true) {

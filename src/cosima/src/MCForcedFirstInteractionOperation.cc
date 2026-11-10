@@ -29,11 +29,9 @@
 
 // Geant4:
 #include "G4BiasingProcessInterface.hh"
-#include "G4BiasingProcessSharedData.hh"
 #include "G4VProcess.hh"
 #include "G4Track.hh"
 #include "G4Step.hh"
-#include "G4StepPoint.hh"
 #include "G4Material.hh"
 #include "G4SystemOfUnits.hh"
 
@@ -42,7 +40,6 @@
 
 // Standard lib:
 #include <cfloat>
-#include <vector>
 using namespace std;
 
 
@@ -88,15 +85,13 @@ int MCForcedFirstInteractionOperation::GetGammaProcessID(const G4String& Name)
 
 
 /******************************************************************************
- * Apply the forcing.
+ * Apply the forcing
  *
- * When we are here, Geant4 has selected the natural process "CallingProcess" to
- * interact at the end of this step. The location was sampled from the analog
- * total cross section, thus it is not modified.
- *
- * All wrapped processes have computed their PostStepGPIL in this step (done by
- * the first G4BiasingProcessInterface), thus their current interaction lengths
- * are up to date and can be used to compute the cross sections at this point.
+ * When we are here, the armed primary has reached its pre-sampled first
+ * interaction point (MCForcedFirstInteractionOperator::StartTracking): during
+ * the flight all processes but the forced one were switched off
+ * (MCForcedFirstInteractionFlight), thus the calling process is the forced one,
+ * and we just have to let it generate its real, analog final state.
  */
 G4VParticleChange* MCForcedFirstInteractionOperation::ApplyFinalStateBiasing(const G4BiasingProcessInterface* CallingProcess,
                                                                              const G4Track* Track,
@@ -104,92 +99,65 @@ G4VParticleChange* MCForcedFirstInteractionOperation::ApplyFinalStateBiasing(con
                                                                              G4bool& ForceBiasedFinalState)
 {
   // We return the particle change "as is", the framework should not touch weights:
-  // cosima does not use Geant4 track weights, the weight is stored as CC line instead
+  // cosima does not use Geant4 track weights, our weight is stored as CC line instead
   ForceBiasedFinalState = true;
 
-  G4VProcess* NaturalProcess = CallingProcess->GetWrappedProcess();
+  G4VProcess* Process = CallingProcess->GetWrappedProcess();
 
   // Safety check: the operator only proposes this operation for armed tracks
   MCTrackInformation* Info = dynamic_cast<MCTrackInformation*>(Track->GetUserInformation());
   if (Info == nullptr || Info->IsForcedFirstInteractionPending() == false) {
-    return NaturalProcess->PostStepDoIt(*Track, *Step);
+    return Process->PostStepDoIt(*Track, *Step);
   }
 
   int ForcedID = Info->GetForcedFirstInteractionProcessID();
-  int NaturalID = GetGammaProcessID(NaturalProcess->GetProcessName());
 
 
-  // Step 1: Determine the cross sections of all physics processes at this point
-  //         and find the forced process
-  G4VProcess* ForcedProcess = nullptr;
-  double SigmaForced = 0.0;
-  double SigmaTotal = 0.0;
-
-  const vector<const G4BiasingProcessInterface*>& Interfaces = CallingProcess->GetSharedData()->GetPhysicsBiasingProcessInterfaces();
-  for (unsigned int i = 0; i < Interfaces.size(); ++i) {
-    G4VProcess* Wrapped = Interfaces[i]->GetWrappedProcess();
-    if (Wrapped == nullptr) continue;
-
+  // Case 1 (the normal case): the forced process interacts at the sampled point
+  if (GetGammaProcessID(Process->GetProcessName()) == ForcedID) {
     // The current interaction length is the inverse of the macroscopic cross section
-    // (DBL_MAX if the process cannot happen, e.g. below threshold)
-    double Lambda = Wrapped->GetCurrentInteractionLength();
-    double Sigma = (Lambda > 0.0 && Lambda < DBL_MAX) ? 1.0/Lambda : 0.0;
-    SigmaTotal += Sigma;
-
-    if (ForcedProcess == nullptr && GetGammaProcessID(Wrapped->GetProcessName()) == ForcedID) {
-      ForcedProcess = Wrapped;
-      SigmaForced = Sigma;
+    // of the material at this point (DBL_MAX if the process cannot happen)
+    double Lambda = Process->GetCurrentInteractionLength();
+    if (Lambda > 0.0 && Lambda < DBL_MAX) {
+      // The real final state of the forced process
+      G4VParticleChange* ParticleChange = Process->PostStepDoIt(*Track, *Step);
+      // Disarm: all following interactions of this track are analog
+      // (Geant4 resets the interaction lengths of all other processes in the next step)
+      Info->SetForcedFirstInteractionDone(true);
+      return ParticleChange;
     }
-  }
 
-
-  // Step 2: Option (a): if the forced process is not possible here, the natural process happens
-  //         The first interaction is done anyway, thus the track is disarmed
-  if (ForcedProcess == nullptr || SigmaForced <= 0.0 || SigmaTotal <= 0.0) {
+    // Case 2: the forced process is not possible here (sigma == 0). This can only happen
+    // by rounding, if the sampled point is exactly on a boundary to a material in which
+    // the process is impossible. Then nothing happens here and the track continues analog.
     if (m_NFailed == 0) {
       mout<<"Forced first interaction: The forced process ("<<MCSource::GetForcedFirstInteractionAsString(ForcedID)
-          <<") has a zero cross section at the first interaction point of a primary (E="<<Track->GetKineticEnergy()/CLHEP::keV
+          <<") has a zero cross section at the sampled interaction point (E="<<Track->GetKineticEnergy()/CLHEP::keV
           <<" keV, material: "<<Track->GetMaterial()->GetName()<<")."<<endl
           <<"  Such primaries are simulated analog and are marked with \"FAILED\" in the CC line. This message is only shown once."<<endl;
     }
     m_NFailed++;
-    Info->SetForcedFirstInteractionDone(false, 0.0, NaturalID);
-    return NaturalProcess->PostStepDoIt(*Track, *Step);
-  }
-
-  double Weight = SigmaForced/SigmaTotal;
-
-
-  // Step 3: Generate the final state
-  G4VParticleChange* ParticleChange = nullptr;
-  if (ForcedProcess == NaturalProcess) {
-    // Nothing to replace - Geant4 picked the forced process anyway
-    ParticleChange = NaturalProcess->PostStepDoIt(*Track, *Step);
-  } else {
-    // The real final state of the forced process (it resets its own number of interaction lengths)
-    ParticleChange = ForcedProcess->PostStepDoIt(*Track, *Step);
-
-    // The natural process did not do its PostStepDoIt, thus its number of interaction
-    // lengths left would be ~0 and it would interact again immediately in the next step.
-    // StartTracking sets it to -1, i.e. it is resampled from scratch at the next step -
-    // exactly what its own PostStepDoIt would have done (memoryless exponential law)
-    NaturalProcess->StartTracking(const_cast<G4Track*>(Track));
-
-    // Tell the stepping action which process REALLY happened, this way it records
-    // e.g. "PHOT" and not "COMP" (same trick as used by G4GammaGeneralProcess)
-    Step->GetPostStepPoint()->SetProcessDefinedStep(ForcedProcess);
+    Info->SetForcedFirstInteractionDone(false);
+    m_ParticleChange.Initialize(*Track);
+    return &m_ParticleChange;
   }
 
 
-  // Step 4: Disarm: all following interactions of this track are analog
-  Info->SetForcedFirstInteractionDone(true, Weight, NaturalID);
-
-  return ParticleChange;
+  // Case 3: Another process interacts - should never happen, since all other processes
+  // are switched off during the flight. Do the analog interaction and disarm
+  if (m_NFailed == 0) {
+    mout<<"Forced first interaction: Unexpected first interaction "<<Process->GetProcessName()
+        <<" instead of "<<MCSource::GetForcedFirstInteractionAsString(ForcedID)<<"."<<endl
+        <<"  Such primaries are simulated analog and are marked with \"FAILED\" in the CC line. This message is only shown once."<<endl;
+  }
+  m_NFailed++;
+  Info->SetForcedFirstInteractionDone(false);
+  return Process->PostStepDoIt(*Track, *Step);
 }
 
 
 /******************************************************************************
- * Not used: no occurrence biasing
+ * Not used: the occurrence biasing is done by MCForcedFirstInteractionFlight
  */
 const G4VBiasingInteractionLaw* MCForcedFirstInteractionOperation::ProvideOccurenceBiasingInteractionLaw(const G4BiasingProcessInterface*,
                                                                                                          G4ForceCondition&)
