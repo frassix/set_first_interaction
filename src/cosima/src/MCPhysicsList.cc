@@ -60,6 +60,8 @@
 #include "G4UAtomicDeexcitation.hh"
 #include "G4LossTableManager.hh"  
 #include "G4NuclideTable.hh"
+#include "G4EmParameters.hh" // edited by Andrea Frassà, 11/10/26
+#include "G4GenericBiasingPhysics.hh" // edited by Andrea Frassà, 11/10/26
 
 // MEGAlib:
 #include "MStreams.h"
@@ -92,7 +94,8 @@ const int MCPhysicsList::c_HDMax = 5;
 MCPhysicsList::MCPhysicsList(MCParameterFile& RunParameters) : G4VModularPhysicsList(),
   m_PhysicsListEM(RunParameters.GetPhysicsListEM()),
   m_PhysicsListHD(RunParameters.GetPhysicsListHD()),
-  m_Regions(RunParameters.GetRegionList())
+  m_Regions(RunParameters.GetRegionList()),
+  m_UsesForcedFirstInteraction(RunParameters.UsesForcedFirstInteraction()) // edited by Andrea Frassà, 11/10/26
 {
   // The default cut
   defaultCutValue = RunParameters.GetDefaultRangeCut();
@@ -178,6 +181,19 @@ void MCPhysicsList::Register()
   
   // We always register all sorts of decays:
   RegisterPhysics(new G4RadioactiveDecayPhysics());
+
+  // edited by Andrea Frassà, 11/10/26: forced first interaction mode -->
+  // Wrap all physics processes of gammas into Geant4 biasing interfaces, which allows 
+  // MCForcedFirstInteractionOperator to replace the final state of the first interaction.
+  // This must be the LAST registered physics, since it wraps the already existing processes.
+  // As long as no operator proposes an operation, the wrapped processes behave exactly analog.
+  if (m_UsesForcedFirstInteraction == true) {
+    G4GenericBiasingPhysics* BiasingPhysics = new G4GenericBiasingPhysics();
+    BiasingPhysics->PhysicsBias("gamma");
+    RegisterPhysics(BiasingPhysics);
+    mout<<"Forced first interaction mode: gamma processes are wrapped by the Geant4 generic biasing"<<endl;
+  }
+  // <-- edited by Andrea Frassà, 11/10/26
   
   // Check what we got:
   cout<<"Chosen physics: "<<endl;
@@ -196,6 +212,16 @@ void MCPhysicsList::Register()
  */
 void MCPhysicsList::ConstructProcess()
 {
+  // edited by Andrea Frassà, 11/10/26: forced first interaction mode -->
+  // The forcing needs the individual gamma processes (compt, phot, conv, Rayl).
+  // Some EM constructors (e.g. G4EmStandardPhysics) merge them into one G4GammaGeneralProcess,
+  // which is activated in their constructor. Thus switch it off here, after the constructors
+  // and before the processes are built. This does not change the physics, only the speed a bit.
+  if (m_UsesForcedFirstInteraction == true) {
+    G4EmParameters::Instance()->SetGeneralProcessActive(false);
+  }
+  // <-- edited by Andrea Frassà, 11/10/26
+
   G4VModularPhysicsList::ConstructProcess();
   
   // Do some additional modifications to the default lists:

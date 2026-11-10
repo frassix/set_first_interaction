@@ -120,6 +120,10 @@ const int MCSource::c_PolarizationRelativeY                        =  5;
 const int MCSource::c_PolarizationRelativeZ                        =  6;
 
 
+// edited by Andrea Frassà, 11/10/26: forced first interaction mode
+const int MCSource::c_ForcedFirstInteractionNone                   = -1;
+
+
 // Don't change this list because the ID is written to the Sim file
 const int MCSource::c_Gamma                                        = 1;
 
@@ -226,6 +230,7 @@ MCSource::MCSource(MString Name) : m_Name(Name)
 void MCSource::Initialize()
 {
   m_Successor = "";
+  m_ForcedFirstInteraction = c_ForcedFirstInteractionNone; // edited by Andrea Frassà, 11/10/26
 
   m_NextEmission = 0;
 
@@ -2055,6 +2060,60 @@ bool MCSource::SetTotalEnergyFlux(const double& TotalEnergyFlux)
   }
 
   return false;
+}
+
+
+/******************************************************************************
+ * Set the interaction which is forced as FIRST interaction of each primary of 
+ * this source. The type is given as the IA code used in the sim file.
+ * Return false if the type is unknown
+ * edited by Andrea Frassà, 11/10/26
+ */
+bool MCSource::SetForcedFirstInteraction(const MString& Type)
+{
+  MString T = Type;
+  T.ToUpper();
+
+  if (T == "COMP" || T == "COMPTON") {
+    m_ForcedFirstInteraction = MCSteppingAction::c_ProcessIDCompton;
+  } else if (T == "PHOT" || T == "PHOTO") {
+    m_ForcedFirstInteraction = MCSteppingAction::c_ProcessIDPhoto;
+  } else if (T == "PAIR") {
+    m_ForcedFirstInteraction = MCSteppingAction::c_ProcessIDPair;
+  } else if (T == "RAYL" || T == "RAYLEIGH") {
+    m_ForcedFirstInteraction = MCSteppingAction::c_ProcessIDRayleigh;
+  } else if (T == "NONE") {
+    m_ForcedFirstInteraction = c_ForcedFirstInteractionNone;
+  } else {
+    mout<<"  ***  ERROR  ***   "<<m_Name<<": Unknown forced first interaction: "<<Type<<" (allowed: COMP, PHOT, PAIR, RAYL, NONE)"<<endl;
+    return false;
+  }
+
+  return true;
+}
+
+
+/******************************************************************************
+ * Return the forced first interaction as sim-file IA code
+ * edited by Andrea Frassà, 11/10/26
+ */
+MString MCSource::GetForcedFirstInteractionAsString(const int ProcessID)
+{
+  if (ProcessID == MCSteppingAction::c_ProcessIDCompton) {
+    return "COMP";
+  } else if (ProcessID == MCSteppingAction::c_ProcessIDPhoto) {
+    return "PHOT";
+  } else if (ProcessID == MCSteppingAction::c_ProcessIDPair) {
+    return "PAIR";
+  } else if (ProcessID == MCSteppingAction::c_ProcessIDRayleigh) {
+    return "RAYL";
+  } else if (ProcessID == MCSteppingAction::c_ProcessIDInelasticScattering) {
+    return "INEL"; // only possible as natural process (photo-nuclear)
+  } else if (ProcessID == c_ForcedFirstInteractionNone) {
+    return "NONE";
+  }
+
+  return "UNKN";
 }
 
 

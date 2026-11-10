@@ -27,7 +27,11 @@
  * Default constructor
  */
 MCTrackInformation::MCTrackInformation() 
-  : m_IsDigitized(false), m_Id(-1), m_OriginId(-1) 
+  : m_IsDigitized(false), m_Id(-1), m_OriginId(-1),
+    // edited by Andrea Frassà, 11/10/26: by default nothing is forced
+    m_ForcedFirstInteractionPending(false), m_ForcedFirstInteractionProcessID(-1),
+    m_ForcedFirstInteractionReportPending(false), m_ForcedFirstInteractionApplied(false),
+    m_ForcedFirstInteractionWeight(0.0), m_ForcedFirstInteractionNaturalProcessID(-1)
 {
   // Intentionally left blank
 }
@@ -37,7 +41,12 @@ MCTrackInformation::MCTrackInformation()
  * Extended constructor
  */
 MCTrackInformation::MCTrackInformation(int Id, int OriginId) 
-  : m_IsDigitized(false), m_Id(Id), m_OriginId(OriginId) 
+  : m_IsDigitized(false), m_Id(Id), m_OriginId(OriginId),
+    // edited by Andrea Frassà, 11/10/26: by default nothing is forced 
+    // (this constructor is used for all secondaries, thus they are never forced)
+    m_ForcedFirstInteractionPending(false), m_ForcedFirstInteractionProcessID(-1),
+    m_ForcedFirstInteractionReportPending(false), m_ForcedFirstInteractionApplied(false),
+    m_ForcedFirstInteractionWeight(0.0), m_ForcedFirstInteractionNaturalProcessID(-1)
 {
   // Intentionally left blank
 }
@@ -104,6 +113,36 @@ void MCTrackInformation::SetOriginId(const int OriginId)
 int MCTrackInformation::GetOriginId() const
 {
   return m_OriginId;
+}
+
+
+/******************************************************************************
+ * Arm the forced first interaction
+ * edited by Andrea Frassà, 11/10/26
+ */
+void MCTrackInformation::ArmForcedFirstInteraction(const int ForcedProcessID)
+{
+  m_ForcedFirstInteractionPending = true;
+  m_ForcedFirstInteractionProcessID = ForcedProcessID;
+  m_ForcedFirstInteractionReportPending = false;
+  m_ForcedFirstInteractionApplied = false;
+  m_ForcedFirstInteractionWeight = 0.0;
+  m_ForcedFirstInteractionNaturalProcessID = -1;
+}
+
+
+/******************************************************************************
+ * Disarm the forcing after the first interaction happened 
+ * and remember the result until it is reported 
+ * edited by Andrea Frassà, 11/10/26
+ */
+void MCTrackInformation::SetForcedFirstInteractionDone(const bool IsForced, const double Weight, const int NaturalProcessID)
+{
+  m_ForcedFirstInteractionPending = false;
+  m_ForcedFirstInteractionReportPending = true;
+  m_ForcedFirstInteractionApplied = IsForced;
+  m_ForcedFirstInteractionWeight = Weight;
+  m_ForcedFirstInteractionNaturalProcessID = NaturalProcessID;
 }
 
 

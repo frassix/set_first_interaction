@@ -26,10 +26,13 @@
 #include "MCRunManager.hh"
 #include "MCSteppingAction.hh"
 #include "MCTrackingAction.hh"
+#include "MCPrimaryParticleInformation.hh" // edited by Andrea Frassà, 11/10/26
 
 // Geant4:
 #include "G4SystemOfUnits.hh"
 #include "G4RunManager.hh"
+#include "G4PrimaryVertex.hh" // edited by Andrea Frassà, 11/10/26
+#include "G4PrimaryParticle.hh" // edited by Andrea Frassà, 11/10/26
 
 // MEGAlib:
 #include "MStreams.h"
@@ -715,6 +718,22 @@ void MCRun::GeneratePrimaries(G4Event* Event, G4GeneralParticleSource* ParticleG
 
       ParticleGun->GeneratePrimaryVertex(Event);
       NGeneratedParticles++;
+      
+      // edited by Andrea Frassà, 11/10/26: forced first interaction mode -->
+      // If the source forces the first interaction, tag the just generated primaries.
+      // The tag is transferred to the track in MCTrackingAction::PreUserTrackingAction.
+      // Only primaries of THIS source are tagged, thus other sources (e.g. successors)
+      // and all secondaries are not affected
+      if (NextSource->HasForcedFirstInteraction() == true && Event->GetNumberOfPrimaryVertex() > 0) {
+        G4PrimaryVertex* Vertex = Event->GetPrimaryVertex(Event->GetNumberOfPrimaryVertex()-1);
+        for (G4int p = 0; p < Vertex->GetNumberOfParticle(); ++p) {
+          G4PrimaryParticle* Primary = Vertex->GetPrimary(p);
+          if (Primary != nullptr && Primary->GetUserInformation() == nullptr) {
+            Primary->SetUserInformation(new MCPrimaryParticleInformation(NextSource->GetForcedFirstInteraction()));
+          }
+        }
+      }
+      // <-- edited by Andrea Frassà, 11/10/26
       
       InitialParticleTypes.push_back(NextSource->GetParticleType());
 

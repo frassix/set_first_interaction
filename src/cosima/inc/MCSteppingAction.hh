@@ -128,6 +128,9 @@ private:
   /// ID of the current interaction (IA == new particle is generated)
   G4int m_InteractionId;
 
+  /// True if any source uses the forced first interaction mode, i.e. gamma processes are wrapped (edited by Andrea Frassà, 11/10/26)
+  bool m_UsesForcedFirstInteraction;
+
   /// TrackID of last UserSteppingAction cycle
   int m_TrackId;
   /// Total number of secondaries of that track during last cycle

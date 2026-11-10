@@ -100,6 +100,9 @@ public:
   /// Return the EM simulation package (high/low energy, doppler, polarized, etc.)
   int GetPhysicsListEM() const { return m_PhysicsListEM; }
 
+  /// Return true if any source of any run forces its first interaction (edited by Andrea Frassà, 11/10/26)
+  bool UsesForcedFirstInteraction();
+
   /// Set the decay mode (normal, ignore, build-up activation)
   void SetDecayMode(const int DecayMode) { m_DecayMode = DecayMode; }
   /// Return the decay mode (normal, ignore, build-up activation)

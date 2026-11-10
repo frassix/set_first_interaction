@@ -24,11 +24,14 @@
 #include "MCTrackInformation.hh"
 #include "MCRunManager.hh"
 #include "MCPhysicsList.hh"
+#include "MCPrimaryParticleInformation.hh" // edited by Andrea Frassà, 11/10/26
 
 // MEGAlib:
 #include "MStreams.h"
 
 // Geant4:
+#include "G4DynamicParticle.hh" // edited by Andrea Frassà, 11/10/26
+#include "G4PrimaryParticle.hh" // edited by Andrea Frassà, 11/10/26
 
 // Standard lib:
 
@@ -59,8 +62,23 @@ void MCTrackingAction::PreUserTrackingAction(const G4Track* Track)
   G4Track* MyTrack = const_cast<G4Track*>(Track); 
 
   if (MyTrack->GetUserInformation() == 0) {
-    MyTrack->SetUserInformation(new MCTrackInformation(m_NPrimaries, m_NPrimaries));
+    MCTrackInformation* Info = new MCTrackInformation(m_NPrimaries, m_NPrimaries);
+    MyTrack->SetUserInformation(Info);
     m_NPrimaries--;
+    
+    // edited by Andrea Frassà, 11/10/26: forced first interaction mode -->
+    // Only primaries (parent ID == 0) can carry the forcing: the information is
+    // attached to the G4PrimaryParticle by the source (MCRun::GeneratePrimaries).
+    // This is called before the processes' StartTracking, thus the biasing operator
+    // sees the armed track already at the first step
+    if (MyTrack->GetParentID() == 0 && MyTrack->GetDynamicParticle()->GetPrimaryParticle() != nullptr) {
+      MCPrimaryParticleInformation* PrimaryInfo = 
+        dynamic_cast<MCPrimaryParticleInformation*>(MyTrack->GetDynamicParticle()->GetPrimaryParticle()->GetUserInformation());
+      if (PrimaryInfo != nullptr && PrimaryInfo->HasForcedFirstInteraction() == true) {
+        Info->ArmForcedFirstInteraction(PrimaryInfo->GetForcedFirstInteraction());
+      }
+    }
+    // <-- edited by Andrea Frassà, 11/10/26
   }
   
 //   if (Track->GetDefinition()->GetParticleName() == "gamma") {

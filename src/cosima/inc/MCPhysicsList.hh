@@ -114,6 +114,9 @@ class MCPhysicsList: public G4VModularPhysicsList
   /// The regions with their individual cuts:
   const vector<MCRegion>& m_Regions; 
 
+  /// True if any source forces its first interaction: activates the generic biasing for gammas (edited by Andrea Frassà, 11/10/26)
+  bool m_UsesForcedFirstInteraction;
+
 };
 
 #endif

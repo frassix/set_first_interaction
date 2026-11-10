@@ -223,6 +223,20 @@ public:
   /// Return the name of a source which is the generator of the next particle
   MString GetSuccessor() const { return m_Successor; }
 
+  // edited by Andrea Frassà, 11/10/26: forced first interaction mode -->
+  /// Set the interaction which is forced as FIRST interaction of each primary
+  /// of this source. Allowed: COMP, PHOT, PAIR, RAYL (the IA codes of the sim file)
+  /// Return false if the type is unknown
+  bool SetForcedFirstInteraction(const MString& Type);
+  /// Return the process ID (MCSteppingAction::c_ProcessIDXYZ) which is forced 
+  /// as first interaction, or c_ForcedFirstInteractionNone
+  int GetForcedFirstInteraction() const { return m_ForcedFirstInteraction; }
+  /// Return true if the first interaction of the primaries of this source is forced
+  bool HasForcedFirstInteraction() const { return m_ForcedFirstInteraction != c_ForcedFirstInteractionNone; }
+  /// Return the forced first interaction as sim-file IA code (COMP, PHOT, PAIR, RAYL), or "NONE"
+  static MString GetForcedFirstInteractionAsString(const int ProcessID);
+  // <-- edited by Andrea Frassà, 11/10/26
+
 
   /// Return true, if the position vector could be set correctly
   bool SetPosition(double PositionParam1 = c_Invalid, 
@@ -442,6 +456,11 @@ public:
   static const int c_PolarizationRelativeY;
   /// Id of the polarization being calculated relative to particle direction and z-axis
   static const int c_PolarizationRelativeZ;
+
+
+  // edited by Andrea Frassà, 11/10/26: forced first interaction mode
+  /// Id indicating that the first interaction is NOT forced
+  static const int c_ForcedFirstInteractionNone;
 
 
   // --> Particles
@@ -718,6 +737,11 @@ private:
   bool m_IsSuccessor;
   /// Name of the secondray emitter in a cascade
   MString m_Successor;
+
+  // edited by Andrea Frassà, 11/10/26: forced first interaction mode
+  /// The process ID (MCSteppingAction::c_ProcessIDXYZ) which is forced as first 
+  /// interaction of the primaries of this source, or c_ForcedFirstInteractionNone
+  int m_ForcedFirstInteraction;
 
   /// Input flux --- not yet correctly normalized
   double m_InputFlux;
