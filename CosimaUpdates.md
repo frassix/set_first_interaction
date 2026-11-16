@@ -1,6 +1,19 @@
-# Cosima update: forced first interaction
+# Cosima updates
 
-*Andrea Frassà, 11/10/26*
+*Andrea Frassà*
+
+Two optional modes, both off unless their keyword is in the `.source` file:
+
+1. [Forced first interaction](#1-forced-first-interaction): `<Source>.ForceFirstInteraction`
+2. [Energy window](#2-energy-window): `StoreEnergyWindow`
+
+They can be used together.
+
+---
+
+# 1. Forced first interaction
+
+*11/10/26*
 
 ## What it does
 
@@ -84,3 +97,76 @@ Run an analog simulation and keep only events whose first interaction is X. With
 - the first-interaction positions;
 - the energy spectra;
 - the fraction of events with first interaction X, compared with the mean weight.
+
+---
+
+# 2. Energy window
+
+*11/16/26*
+
+## What it does
+
+One global line in the `.source` file (it applies to all runs and sources):
+
+```
+StoreEnergyWindow  <Emin>  <Emax>  [<Detector> ...]     # keV
+```
+
+- An event is **saved only if its deposit in the active detector volumes lies between Emin and Emax.** The deposit is the true energy, before detector resolution.
+- **Which deposits count:**
+  - by default, all detectors that can trigger; detectors used only as vetoes (e.g. anti-coincidence shields) don't count;
+  - with detector names (as in the geometry file), only those detectors count;
+  - guard rings never count.
+- **It adds to the normal trigger.** An event must trigger and be inside the window.
+- **`Triggers N` counts saved events only**, because the window is checked before the event is counted.
+- **The `TS` line still holds all simulated events**, so efficiency = saved / TS.
+
+It combines the behaviour of the existing `StoreMinimumEnergy` (lower cut) and `StoreMaximumEnergyLoss` (early abort), and adds an upper cut.
+
+## Early abort: why it is faster than "simulate everything and filter"
+
+An event is stopped as soon as it can no longer end up in the window:
+
+- **Above:** deposits only grow. Once the counted deposit passes Emax, the event is aborted immediately.
+- **Below:** the deposit can never exceed
+  `budget − lost`, where
+  - `budget` = kinetic energy of the primaries, plus 1022 keV for each primary positron;
+  - `lost` = energy that escaped the world, was killed in a black absorber, or went into passive material, guard rings or detectors that don't count.
+
+  Once `budget − lost < Emin`, the event is aborted.
+
+  Example: a Compton-scattered photon leaves the detector. Geant4 tracks the photon before its recoil electron, so the escape is known first, and the expensive electron tracking is skipped.
+
+**When the lower abort is switched off.** The budget is a true upper limit only while every particle in the event is a gamma, e±, or neutrino. As soon as any other particle exists (neutron, proton, ion, muon, …), energy can be released (capture, decay, nuclear reactions), so the lower abort is switched off for the rest of that event. This happens:
+- from the start, for such primaries;
+- at the moment of creation, for such secondaries (e.g. photo-nuclear reactions).
+
+The upper abort is always exact and stays on.
+
+To switch both aborts off (e.g. to validate that saved results are identical with and without them):
+
+```
+StoreEnergyWindowEarlyAbort  false
+```
+
+At the end of each run cosima prints how many events were stored, rejected, and aborted above or below.
+
+## Critical points
+
+- **Detector resolution is not included.** Cosima stores true energies; resolution is applied when revan or sivan reads the `.sim` file. Set the window about 3σ of your resolution wider on each side than your analysis window, then apply the exact cut in revan or mimrec.
+- **Normalisation:** saved / TS is the probability for one simulated primary to give a saved event. Together with the forced first interaction mode, also multiply by the CC weight.
+- **Detector names:** a name not found in the geometry stops cosima with an error.
+- **Not compiled yet.** Checked by reading the code; not built against a full ROOT + Geant4 install.
+
+## Code changes (`src/cosima`)
+
+| File | Change |
+|---|---|
+| `MCParameterFile` | `StoreEnergyWindow` and `StoreEnergyWindowEarlyAbort` keywords. |
+| `MCEventAction` | Running deposit, budget and loss per event; early aborts; window check before the event is counted; run statistics. |
+| `MCSD` + all 6 sensitive detectors | `ReportDeposit()`: each deposit stored in a hit is reported with its detector and guard-ring flag. |
+| `MCSteppingAction` | Checks new secondaries for particles that can release energy. |
+| `MCRun::GeneratePrimaries` | Adds each primary to the energy budget. |
+| `MCDetectorConstruction` | Checks that the named detectors exist. |
+
+Example: `resource/examples/cosima/source/EnergyWindow.source`

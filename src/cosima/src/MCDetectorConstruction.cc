@@ -608,6 +608,33 @@ bool MCDetectorConstruction::ConstructDetectors()
     
   }
 
+  // edited by Andrea Frassà, 11/16/26: energy window mode -->
+  // Check that the detectors named in StoreEnergyWindow exist
+  if (m_RunParameters.StoreEnergyWindow() == true) {
+    vector<MString> WindowDetectors = m_RunParameters.StoreEnergyWindowDetectors();
+    for (unsigned int w = 0; w < WindowDetectors.size(); ++w) {
+      bool Found = false;
+      for (unsigned int d = 0; d < m_Geometry->GetNDetectors(); ++d) {
+        if (m_Geometry->GetDetectorAt(d)->GetName() == WindowDetectors[w]) {
+          Found = true;
+          break;
+        }
+      }
+      if (Found == false) {
+        merr<<"StoreEnergyWindow: The detector \""<<WindowDetectors[w]<<"\" does not exist in the geometry!"<<endl;
+        return false;
+      }
+    }
+    if (WindowDetectors.size() == 0) {
+      mout<<"Energy window: counting the deposits in all detectors which can trigger (no guard rings, no veto-only detectors)"<<endl;
+    } else {
+      mout<<"Energy window: counting the deposits in the detector(s):";
+      for (unsigned int w = 0; w < WindowDetectors.size(); ++w) mout<<" "<<WindowDetectors[w];
+      mout<<" (no guard rings)"<<endl;
+    }
+  }
+  // <-- edited by Andrea Frassà, 11/16/26
+
   return true;
 }
 

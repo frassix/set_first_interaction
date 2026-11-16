@@ -209,6 +209,9 @@ G4bool MCAngerCameraSD::PostProcessHits(const G4Step* Step)
 
   // This info makes sure the energy deposit is not added to the passive matrerial list
   if (Added == true) {
+    // Energy window mode: the deposit is now part of the hits (edited by Andrea Frassà, 11/16/26)
+    ReportDeposit(Energy, false);
+
     // Set info that this hit has been added/digitized
     MCTrackInformation* TrackInfo = 
       (MCTrackInformation*) (Step->GetTrack()->GetUserInformation());

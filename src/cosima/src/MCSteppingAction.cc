@@ -264,6 +264,17 @@ void MCSteppingAction::UserSteppingAction(const G4Step* Step)
     Track->SetTrackStatus(fKillTrackAndSecondaries);
     return;
   }
+
+  // edited by Andrea Frassà, 11/16/26: energy window mode -->
+  // Check the secondaries created in this step: if one of them can release energy 
+  // (neutron, ion, ...), the energy budget is no longer an upper limit of the deposit
+  if (GeneratedSecondaries > 0 && EventAction->UsesEnergyWindow() == true) {
+    for (int se = (int) fpSteppingManager->GetSecondary()->size() - GeneratedSecondaries; 
+         se < (int) fpSteppingManager->GetSecondary()->size(); ++se) {
+      EventAction->CheckEnergyWindowSecondary((*fpSteppingManager->GetSecondary())[se]->GetDefinition());
+    }
+  }
+  // <-- edited by Andrea Frassà, 11/16/26
   
   // Quick sanity check to prevent some Geant4 hick-ups:
   if (std::isnan(Track->GetPosition().getX())) {

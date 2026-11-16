@@ -25,6 +25,12 @@
 // MEGAlib:
 #include "MDDetector.h"
 
+// Geant4:
+#include "G4EventManager.hh" // edited by Andrea Frassà, 11/16/26
+
+// Cosima:
+#include "MCEventAction.hh" // edited by Andrea Frassà, 11/16/26
+
 
 /******************************************************************************/
 
@@ -75,6 +81,21 @@ int MCSD::GetType()
 {
   return m_Type;
 }
+
+/******************************************************************************
+ * Report a deposit, which has just been stored in a hit, to the event action:
+ * used by the energy window mode to know the deposit in the active volumes 
+ * during the event (for the early abort)
+ * edited by Andrea Frassà, 11/16/26
+ */
+void MCSD::ReportDeposit(const G4double Energy, const bool IsGuardring)
+{
+  MCEventAction* EventAction = dynamic_cast<MCEventAction*>(G4EventManager::GetEventManager()->GetUserEventAction());
+  if (EventAction != nullptr && EventAction->UsesEnergyWindow() == true) {
+    EventAction->AddSensitiveDeposit(GetName(), Energy, IsGuardring, m_IsNeverTriggering);
+  }
+}
+
 
 /*
  * MCSD.cc: the end...
