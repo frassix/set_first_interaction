@@ -70,6 +70,10 @@ MCParameterFile::MCParameterFile() : MParser(' ', true),
                                      m_StoreOneHitPerEvent(false),
                                      m_StoreMinimumEnergy(-1E+40*keV),
                                      m_StoreMaximumEnergyLoss(1E+40*keV),
+                                     m_StoreEnergyWindow(false), // edited by Andrea Frassà, 11/16/26
+                                     m_StoreEnergyWindowMinimum(0.0),
+                                     m_StoreEnergyWindowMaximum(0.0),
+                                     m_StoreEnergyWindowEarlyAbort(true),
                                      m_DiscretizeHits(true),
                                      m_CheckForOverlaps(false),
                                      m_OverlapCheckResolution(1000),
@@ -490,6 +494,34 @@ bool MCParameterFile::Parse()
         Typo(i, "Cannot parse token StoreMinimimumEnergy: Number of tokens is not correct!");
         return false;
       }
+    // edited by Andrea Frassà, 11/16/26: energy window mode -->
+    } else if (T->IsTokenAt(0, "StoreEnergyWindow", true) == true) {
+      // StoreEnergyWindow <Emin [keV]> <Emax [keV]> [<detector name> <detector name> ...]
+      if (T->GetNTokens() >= 3) {
+        m_StoreEnergyWindow = true;
+        m_StoreEnergyWindowMinimum = T->GetTokenAtAsDouble(1)*keV;
+        m_StoreEnergyWindowMaximum = T->GetTokenAtAsDouble(2)*keV;
+        m_StoreEnergyWindowDetectors.clear();
+        for (unsigned int t = 3; t < T->GetNTokens(); ++t) {
+          m_StoreEnergyWindowDetectors.push_back(T->GetTokenAtAsString(t));
+        }
+        if (m_StoreEnergyWindowMinimum < 0 || m_StoreEnergyWindowMaximum <= m_StoreEnergyWindowMinimum) {
+          Typo(i, "Cannot parse token StoreEnergyWindow: We need 0 <= Emin < Emax!");
+          return false;
+        }
+        mdebug<<"Storing only events with a deposit between "<<m_StoreEnergyWindowMinimum/keV<<" and "<<m_StoreEnergyWindowMaximum/keV<<" keV"<<endl;
+      } else {
+        Typo(i, "Cannot parse token StoreEnergyWindow: Number of tokens is not correct (StoreEnergyWindow <Emin> <Emax> [<detector names>])!");
+        return false;
+      }
+    } else if (T->IsTokenAt(0, "StoreEnergyWindowEarlyAbort", true) == true) {
+      if (T->GetNTokens() == 2) {
+        m_StoreEnergyWindowEarlyAbort = T->GetTokenAtAsBoolean(1);
+      } else {
+        Typo(i, "Cannot parse token StoreEnergyWindowEarlyAbort: Number of tokens is not correct!");
+        return false;
+      }
+    // <-- edited by Andrea Frassà, 11/16/26
     } else if (T->IsTokenAt(0, "StoreMaximumEnergyLoss", true) == true) {
       if (T->GetNTokens() == 2) {
         m_StoreMaximumEnergyLoss = T->GetTokenAtAsDouble(1)*keV;

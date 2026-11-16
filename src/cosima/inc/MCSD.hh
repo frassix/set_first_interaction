@@ -100,9 +100,14 @@ public:
 
   /// Set that the detector is never triggering (always vetoing)
   void SetIsNeverTriggering(bool Flag) { m_IsNeverTriggering = Flag; }
+  /// Return true if the detector is never triggering (always vetoing) (edited by Andrea Frassà, 11/16/26)
+  bool IsNeverTriggering() const { return m_IsNeverTriggering; }
   
   // protected methods:
 protected:
+  /// Report a deposit, which has just been stored in a hit, to the event action 
+  /// (energy window mode) (edited by Andrea Frassà, 11/16/26)
+  void ReportDeposit(const G4double Energy, const bool IsGuardring);
   
 
   // protected members:

@@ -32,11 +32,13 @@
 // Geant4:
 #include "G4UserEventAction.hh"
 #include "globals.hh"
+#include "G4ParticleDefinition.hh" // edited by Andrea Frassà, 11/16/26
 
 // Standard lib:
 #include <fstream>
 #include <map>
 #include <string>
+#include <vector>
 using namespace std;
 
 // Cosima:
@@ -114,6 +116,19 @@ public:
   void AddComment(string Comment);
   /// Add an energy loss
   void AddEnergyLoss(double Energy);
+
+  // edited by Andrea Frassà, 11/16/26: energy window mode -->
+  /// Return true if only events with a deposit inside the energy window are stored
+  bool UsesEnergyWindow() const { return m_UseEnergyWindow; }
+  /// Add a primary particle of this event to the energy budget (called at generation)
+  void AddEnergyWindowPrimary(const G4ParticleDefinition* Particle, const double KineticEnergy);
+  /// Check a newly created secondary: if it can release energy (e.g. nuclear processes)
+  /// the energy budget is no longer an upper limit and the early abort "from below" is switched off
+  void CheckEnergyWindowSecondary(const G4ParticleDefinition* Particle);
+  /// Add a deposit which has been stored in a hit of a sensitive detector
+  /// (called by the sensitive detectors, see MCSD::ReportDeposit)
+  void AddSensitiveDeposit(const G4String& SDName, const double Energy, const bool IsGuardring, const bool IsNeverTriggering);
+  // <-- edited by Andrea Frassà, 11/16/26
   
   /// Interrupts the executon at the end of the next event
   void Interrupt() { m_Interrupt = true; }
@@ -124,6 +139,16 @@ public:
 protected:
   /// Write the file header 
   bool WriteFileHeader(double ObservationStartTime);
+
+  // edited by Andrea Frassà, 11/16/26: energy window mode -->
+  /// Add energy which can no longer contribute to the energy window deposit
+  /// (escaped, passive material, guard rings, not counted detectors)
+  void AddEnergyWindowLoss(const double Energy);
+  /// Return true if the particle cannot release energy (gamma, e-, e+, neutrinos)
+  bool IsEnergyWindowSafeParticle(const G4ParticleDefinition* Particle) const;
+  /// Return true if deposits in this sensitive detector count for the energy window
+  bool IsEnergyWindowDetector(const G4String& SDName, const bool IsNeverTriggering) const;
+  // <-- edited by Andrea Frassà, 11/16/26
 
   /// Save the event to file (only saves the event if we really want to)
   bool SaveEventToFile(MSimEvent* Event);
@@ -246,6 +271,38 @@ private:
 
   /// Store the trigger unit for fast access
   MDTriggerUnit* m_TriggerUnit;
+
+  // edited by Andrea Frassà, 11/16/26: energy window mode -->
+  /// True if only events with a deposit inside the energy window are stored
+  bool m_UseEnergyWindow;
+  /// Lower edge of the energy window
+  double m_EnergyWindowMinimum;
+  /// Upper edge of the energy window
+  double m_EnergyWindowMaximum;
+  /// Names of the sensitive detectors (detector name + "SD") which count - empty: all triggering detectors
+  vector<G4String> m_EnergyWindowDetectors;
+  /// True if events which can no longer end up in the window are aborted early
+  bool m_EnergyWindowEarlyAbort;
+
+  /// Per event: deposit in the counted detectors (without guard rings)
+  double m_EnergyWindowDeposit;
+  /// Per event: energy budget: kinetic energy of all primaries (+ 2 m_e c^2 for each primary positron)
+  double m_EnergyWindowBudget;
+  /// Per event: energy which can no longer reach the counted detectors
+  double m_EnergyWindowLoss;
+  /// Per event: true as long as the budget is a strict upper limit for the deposit
+  /// (false as soon as a particle exists which can release energy, e.g. neutrons or ions)
+  bool m_EnergyWindowBudgetValid;
+
+  /// Statistics: events aborted since the deposit exceeded the upper edge
+  long m_EnergyWindowNAbortedAbove;
+  /// Statistics: events aborted since the deposit can no longer reach the lower edge
+  long m_EnergyWindowNAbortedBelow;
+  /// Statistics: events which ended outside the window
+  long m_EnergyWindowNRejected;
+  /// Statistics: events which ended inside the window
+  long m_EnergyWindowNAccepted;
+  // <-- edited by Andrea Frassà, 11/16/26
 
 };
 

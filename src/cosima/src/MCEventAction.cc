@@ -40,6 +40,7 @@
 
 // Geant4:
 #include "G4SystemOfUnits.hh"
+#include "G4PhysicalConstants.hh" // edited by Andrea Frassà, 11/16/26
 #include "G4Event.hh"
 #include "G4RunManager.hh"
 #include "G4SDManager.hh"
@@ -74,6 +75,26 @@ MCEventAction::MCEventAction(MCParameterFile& RunParameters, const bool Zip, con
   m_StoreOneHitPerEvent = RunParameters.StoreOneHitPerEvent();
   m_StoreMinimumEnergy = RunParameters.StoreMinimumEnergy();
   m_StoreMaximumEnergyLoss = RunParameters.StoreMaximumEnergyLoss();
+
+  // edited by Andrea Frassà, 11/16/26: energy window mode -->
+  m_UseEnergyWindow = RunParameters.StoreEnergyWindow();
+  m_EnergyWindowMinimum = RunParameters.StoreEnergyWindowMinimum();
+  m_EnergyWindowMaximum = RunParameters.StoreEnergyWindowMaximum();
+  m_EnergyWindowEarlyAbort = RunParameters.StoreEnergyWindowEarlyAbort();
+  // The sensitive detectors are named after the detector + "SD" (see MCDetectorConstruction)
+  vector<MString> Detectors = RunParameters.StoreEnergyWindowDetectors();
+  for (unsigned int d = 0; d < Detectors.size(); ++d) {
+    m_EnergyWindowDetectors.push_back(G4String((Detectors[d] + "SD").Data()));
+  }
+  m_EnergyWindowDeposit = 0.0;
+  m_EnergyWindowBudget = 0.0;
+  m_EnergyWindowLoss = 0.0;
+  m_EnergyWindowBudgetValid = true;
+  m_EnergyWindowNAbortedAbove = 0;
+  m_EnergyWindowNAbortedBelow = 0;
+  m_EnergyWindowNRejected = 0;
+  m_EnergyWindowNAccepted = 0;
+  // <-- edited by Andrea Frassà, 11/16/26
   
   m_PreTriggerMode = RunParameters.GetPreTriggerMode();
   
@@ -118,6 +139,12 @@ MCEventAction::~MCEventAction()
 bool MCEventAction::NextRun()
 {
   Reset();
+
+  // edited by Andrea Frassà, 11/16/26: energy window statistics are per run
+  m_EnergyWindowNAbortedAbove = 0;
+  m_EnergyWindowNAbortedBelow = 0;
+  m_EnergyWindowNRejected = 0;
+  m_EnergyWindowNAccepted = 0;
 
   m_ID = 0;
   m_Event->SetGeometry(MCRunManager::GetMCRunManager()->GetDetectorConstruction()->GetGeometry());
@@ -344,6 +371,13 @@ void MCEventAction::Reset()
 
   m_LostEnergy = 0;
   m_IsAborted = false;
+
+  // edited by Andrea Frassà, 11/16/26: energy window mode
+  // (the budget of the NEXT event is filled in MCRun::GeneratePrimaries, which is called after this)
+  m_EnergyWindowDeposit = 0.0;
+  m_EnergyWindowBudget = 0.0;
+  m_EnergyWindowLoss = 0.0;
+  m_EnergyWindowBudgetValid = true;
   
   // Deletes all passed pointers!
   m_Event->Reset();
@@ -390,6 +424,12 @@ void MCEventAction::AddIA(G4String ProcessID,
   if (ProcessID == "ESCP") {
     AddEnergyLoss(NewKin);
   }
+
+  // edited by Andrea Frassà, 11/16/26: energy window mode
+  // Escaping particles and particles killed by black absorbers take their energy with them
+  if (m_UseEnergyWindow == true && (ProcessID == "ESCP" || ProcessID == "BLAK")) {
+    AddEnergyWindowLoss(NewKin);
+  }
 }
 
 /******************************************************************************
@@ -431,6 +471,11 @@ void MCEventAction::AddDepositPassiveMaterial(double Energy,
   AddEnergyLoss(Energy);
   
   m_PassiveMaterialMap[MaterialName] += Energy;
+
+  // edited by Andrea Frassà, 11/16/26: energy window mode
+  if (m_UseEnergyWindow == true) {
+    AddEnergyWindowLoss(Energy);
+  }
 }
 
 
@@ -441,6 +486,128 @@ void MCEventAction::AddEnergyLoss(double Energy)
 {
   m_LostEnergy += Energy;
   if (m_LostEnergy > m_StoreMaximumEnergyLoss) {
+    AbortEvent();
+  }
+}
+
+
+/******************************************************************************
+ * Energy window mode: add a primary particle of this event to the energy budget
+ * The budget is the maximum energy the event can ever deposit, as long as only
+ * particles exist which cannot release energy (see IsEnergyWindowSafeParticle):
+ * the kinetic energy of the primaries, plus the rest mass energy which is released
+ * when a primary positron annihilates.
+ * (Positrons created by pair production do not add anything: their rest mass came
+ * from the photon energy, which is already in the budget)
+ * edited by Andrea Frassà, 11/16/26
+ */
+void MCEventAction::AddEnergyWindowPrimary(const G4ParticleDefinition* Particle, const double KineticEnergy)
+{
+  if (m_UseEnergyWindow == false || Particle == nullptr) return;
+
+  m_EnergyWindowBudget += KineticEnergy;
+  if (Particle->GetPDGEncoding() == -11) {
+    m_EnergyWindowBudget += 2*electron_mass_c2;
+  }
+
+  if (IsEnergyWindowSafeParticle(Particle) == false) {
+    m_EnergyWindowBudgetValid = false;
+  }
+}
+
+
+/******************************************************************************
+ * Energy window mode: check a newly created secondary
+ * If it can release energy (neutron capture, decays, nuclear reactions, ...) 
+ * we can no longer give an upper limit for the deposit, and the early abort 
+ * "from below" is switched off for the rest of this event
+ * edited by Andrea Frassà, 11/16/26
+ */
+void MCEventAction::CheckEnergyWindowSecondary(const G4ParticleDefinition* Particle)
+{
+  if (m_UseEnergyWindow == false || m_EnergyWindowBudgetValid == false || Particle == nullptr) return;
+
+  if (IsEnergyWindowSafeParticle(Particle) == false) {
+    m_EnergyWindowBudgetValid = false;
+  }
+}
+
+
+/******************************************************************************
+ * Energy window mode: return true if the particle cannot release energy,
+ * i.e. its total contribution to the deposits is limited by its kinetic energy
+ * (positron: + its rest mass energy, which is handled in the budget):
+ * gamma, e-, e+, and neutrinos (which only carry energy away)
+ * edited by Andrea Frassà, 11/16/26
+ */
+bool MCEventAction::IsEnergyWindowSafeParticle(const G4ParticleDefinition* Particle) const
+{
+  int PDG = abs(Particle->GetPDGEncoding());
+  if (PDG == 22 || PDG == 11 || PDG == 12 || PDG == 14 || PDG == 16) return true;
+
+  return false;
+}
+
+
+/******************************************************************************
+ * Energy window mode: return true if deposits in this sensitive detector count
+ * Default (no detectors given): all detectors which can trigger, i.e. not the 
+ * detectors which are only vetoes (e.g. anti-coincidence shields)
+ * edited by Andrea Frassà, 11/16/26
+ */
+bool MCEventAction::IsEnergyWindowDetector(const G4String& SDName, const bool IsNeverTriggering) const
+{
+  if (m_EnergyWindowDetectors.size() == 0) {
+    return !IsNeverTriggering;
+  }
+
+  for (unsigned int d = 0; d < m_EnergyWindowDetectors.size(); ++d) {
+    if (m_EnergyWindowDetectors[d] == SDName) return true;
+  }
+
+  return false;
+}
+
+
+/******************************************************************************
+ * Energy window mode: add a deposit which has been stored in a hit
+ * Counted deposits can only grow: if they exceed the upper edge, the event 
+ * will never be stored, thus we abort it immediately.
+ * Deposits in guard rings and not counted detectors can never reach the counted
+ * detectors anymore, thus they are a loss for the energy budget.
+ * edited by Andrea Frassà, 11/16/26
+ */
+void MCEventAction::AddSensitiveDeposit(const G4String& SDName, const double Energy, const bool IsGuardring, const bool IsNeverTriggering)
+{
+  if (m_UseEnergyWindow == false || m_IsAborted == true) return;
+
+  if (IsGuardring == false && IsEnergyWindowDetector(SDName, IsNeverTriggering) == true) {
+    m_EnergyWindowDeposit += Energy;
+    if (m_EnergyWindowEarlyAbort == true && m_EnergyWindowDeposit > m_EnergyWindowMaximum) {
+      m_EnergyWindowNAbortedAbove++;
+      AbortEvent();
+    }
+  } else {
+    AddEnergyWindowLoss(Energy);
+  }
+}
+
+
+/******************************************************************************
+ * Energy window mode: add energy which can no longer reach the counted detectors
+ * If the budget is a strict upper limit and what is left of it can no longer 
+ * reach the lower edge, the event will never be stored, thus we abort it immediately.
+ * edited by Andrea Frassà, 11/16/26
+ */
+void MCEventAction::AddEnergyWindowLoss(const double Energy)
+{
+  m_EnergyWindowLoss += Energy;
+
+  if (m_EnergyWindowEarlyAbort == false || m_EnergyWindowBudgetValid == false || m_IsAborted == true) return;
+
+  // 1 eV tolerance against rounding errors for events right at the lower edge
+  if (m_EnergyWindowBudget - m_EnergyWindowLoss < m_EnergyWindowMinimum - 1*eV) {
+    m_EnergyWindowNAbortedBelow++;
     AbortEvent();
   }
 }
@@ -631,6 +798,21 @@ void MCEventAction::EndOfEventAction(const G4Event* Event)
     }
       
       
+    // edited by Andrea Frassà, 11/16/26: energy window mode -->
+    // Only store events with a deposit inside the window. This is decided BEFORE the 
+    // event is counted, thus the stop condition "Triggers" counts stored events only.
+    // The deposit is the sum of all hits in the counted detectors (without guard rings), 
+    // reported by the sensitive detectors when the hits were created (MCSD::ReportDeposit)
+    if (StoreEvent == true && m_UseEnergyWindow == true) {
+      if (m_EnergyWindowDeposit < m_EnergyWindowMinimum || m_EnergyWindowDeposit > m_EnergyWindowMaximum) {
+        StoreEvent = false;
+        m_EnergyWindowNRejected++;
+      } else {
+        m_EnergyWindowNAccepted++;
+      }
+    }
+    // <-- edited by Andrea Frassà, 11/16/26
+
     if (StoreEvent == true) {
       for (unsigned int i = 0; i < TwoDStripColl.size(); ++i) {
         mdebug<<"Writing 2D strip hits..."<<endl;
@@ -807,6 +989,17 @@ void MCEventAction::EndOfEventAction(const G4Event* Event)
   m_TimerStarted = false;
 
   if (m_Interrupt == true || Run.CheckStopConditions() == true) {
+    // edited by Andrea Frassà, 11/16/26: energy window statistics
+    if (m_UseEnergyWindow == true) {
+      mout<<endl;
+      mout<<"Energy window ["<<m_EnergyWindowMinimum/keV<<", "<<m_EnergyWindowMaximum/keV<<"] keV:"<<endl;
+      mout<<"  Stored (inside window):              "<<m_EnergyWindowNAccepted<<endl;
+      mout<<"  Not stored (outside window):         "<<m_EnergyWindowNRejected<<endl;
+      mout<<"  Aborted early (above upper edge):    "<<m_EnergyWindowNAbortedAbove<<endl;
+      mout<<"  Aborted early (can't reach lower edge): "<<m_EnergyWindowNAbortedBelow<<endl;
+      mout<<endl;
+    }
+    
     if (m_SaveEvents == true) {
       if (m_StoreBinary == true) {
         MBinaryStore S;

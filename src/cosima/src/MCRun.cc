@@ -735,6 +735,19 @@ void MCRun::GeneratePrimaries(G4Event* Event, G4GeneralParticleSource* ParticleG
       }
       // <-- edited by Andrea Frassà, 11/10/26
       
+      // edited by Andrea Frassà, 11/16/26: energy window mode -->
+      // Add the just generated primaries to the energy budget of this event
+      if (EventAction->UsesEnergyWindow() == true && Event->GetNumberOfPrimaryVertex() > 0) {
+        G4PrimaryVertex* Vertex = Event->GetPrimaryVertex(Event->GetNumberOfPrimaryVertex()-1);
+        for (G4int p = 0; p < Vertex->GetNumberOfParticle(); ++p) {
+          G4PrimaryParticle* Primary = Vertex->GetPrimary(p);
+          if (Primary != nullptr) {
+            EventAction->AddEnergyWindowPrimary(Primary->GetParticleDefinition(), Primary->GetKineticEnergy());
+          }
+        }
+      }
+      // <-- edited by Andrea Frassà, 11/16/26
+      
       InitialParticleTypes.push_back(NextSource->GetParticleType());
 
       //cout<<"Generated particle: "<<ParticleGun->GetParticleDefinition()->GetParticleName()<<endl;

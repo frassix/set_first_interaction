@@ -1,0 +1,41 @@
+# This example shows the energy window mode 
+# (edited by Andrea Frassà, 11/16/26)
+#
+# Only events which deposit between 640 and 680 keV in the active detector
+# volumes are stored (here: around the 662 keV full energy peak of Cs-137).
+# Without detector names all detectors which can trigger count (no guard rings,
+# no veto-only detectors); add detector names to restrict it, e.g.:
+#   StoreEnergyWindow   640  680  GScinti
+#
+# Events which can no longer end up in the window are aborted early.
+# "Triggers 10000" means 10000 STORED events, TS in the sim file counts all simulated ones.
+# Remember: energies are true deposits, the detector resolution is applied later
+# (revan/mimrec) - make the window ~3 sigma wider than your analysis window.
+
+
+# Global parameters:
+Version               1
+Geometry              $(MEGALIB)/resource/examples/geomega/special/Spheric.geo.setup
+
+# Physics list
+PhysicsListEM                        LivermorePol
+
+# Output formats
+StoreSimulationInfo                  all
+
+# Energy window (keV)
+StoreEnergyWindow                    640  680
+
+
+
+# Run: 662 keV narrow beam
+
+Run MyWindowRun
+MyWindowRun.FileName                      EnergyWindow
+MyWindowRun.Triggers                      10000
+
+MyWindowRun.Source MyWindowSource
+MyWindowSource.ParticleType               1
+MyWindowSource.Beam                       HomogeneousBeam  0 0 90  0 0 -1  0.1
+MyWindowSource.Spectrum                   Mono 662.0
+MyWindowSource.Flux                       1.0

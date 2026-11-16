@@ -133,6 +133,19 @@ public:
   double StoreMinimumEnergy() const { return m_StoreMinimumEnergy; }
   /// Return the maximum energy loss an event can have before it is discarded (default: 1E+40*keV)
   double StoreMaximumEnergyLoss() const { return m_StoreMaximumEnergyLoss; }
+
+  // edited by Andrea Frassà, 11/16/26: energy window mode -->
+  /// Return true if only events with a deposit inside the energy window are stored
+  bool StoreEnergyWindow() const { return m_StoreEnergyWindow; }
+  /// Return the lower edge of the energy window (deposit in the active detector volumes)
+  double StoreEnergyWindowMinimum() const { return m_StoreEnergyWindowMinimum; }
+  /// Return the upper edge of the energy window (deposit in the active detector volumes)
+  double StoreEnergyWindowMaximum() const { return m_StoreEnergyWindowMaximum; }
+  /// Return the names of the detectors in which the deposit is counted (empty: all triggering detectors)
+  vector<MString> StoreEnergyWindowDetectors() const { return m_StoreEnergyWindowDetectors; }
+  /// Return true if events which can no longer end up in the window are aborted early
+  bool StoreEnergyWindowEarlyAbort() const { return m_StoreEnergyWindowEarlyAbort; }
+  // <-- edited by Andrea Frassà, 11/16/26
   /// Return true, if the hits should be discretized
   bool DiscretizeHits() const { return m_DiscretizeHits; }
   /// Return the watched volumes list
@@ -246,6 +259,19 @@ private:
   double m_StoreMinimumEnergy;
   /// The maximum energy loss an event can have before it is discarded (default: 1E+40*keV)
   double m_StoreMaximumEnergyLoss;
+
+  // edited by Andrea Frassà, 11/16/26: energy window mode -->
+  /// True if only events with a deposit inside the energy window are stored
+  bool m_StoreEnergyWindow;
+  /// Lower edge of the energy window
+  double m_StoreEnergyWindowMinimum;
+  /// Upper edge of the energy window
+  double m_StoreEnergyWindowMaximum;
+  /// Names of the detectors in which the deposit is counted (empty: all triggering detectors)
+  vector<MString> m_StoreEnergyWindowDetectors;
+  /// True if events which can no longer end up in the window are aborted early
+  bool m_StoreEnergyWindowEarlyAbort;
+  // <-- edited by Andrea Frassà, 11/16/26
   /// True, if hits should be discretized in the volume voxels
   bool m_DiscretizeHits;
   /// List of watched volumes to store enter & exit information
