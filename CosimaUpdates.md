@@ -2,7 +2,11 @@
 
 *Andrea Frassà*
 
-Two optional modes, both off unless their keyword is in the `.source` file:
+Two optional modes, both off unless their keyword is in the `.source` file.
+
+**Versions:** MEGAlib's setup requires ROOT 6.40 and Geant4 10.2 (p03), which `setup.sh` downloads and builds when no `--root`/`--geant` is given (see `config/Allowed*Versions.txt`). The new code compiles against Geant4 10.2 and also 11.x.
+
+The two modes:
 
 1. [Forced first interaction](#1-forced-first-interaction): `<Source>.ForceFirstInteraction`
 2. [Energy window](#2-energy-window): `StoreEnergyWindow`
@@ -68,10 +72,10 @@ CC ForcedFirstInteraction <PrimaryID> <Forced> <OK|FAILED> <Weight>
   - A photon that misses the detector is still forced somewhere along its path, e.g. in the world material or air, with a tiny weight. With extended beams, always use the weight.
 - **If X is impossible along the whole path** (e.g. PAIR below 1.022 MeV), the primary is simulated analog and marked `FAILED` with weight 0. A warning is printed once.
 - **Physics setup:**
-  - Gamma processes are wrapped by `G4GenericBiasingPhysics`, and `G4GammaGeneralProcess` is switched off. This only happens when the keyword is used; the physics is unchanged.
+  - Gamma processes are wrapped by `G4GenericBiasingPhysics`. With Geant4 ≥ 10.5, `G4GammaGeneralProcess` is also switched off (it doesn't exist in 10.2). This only happens when the keyword is used; the physics is unchanged.
   - Geant4 track weights are kept at 1. Our weight is only in the CC line.
 - **Process-name list is duplicated.** `MCForcedFirstInteractionOperation::GetGammaProcessID` repeats the gamma process names from `MCSteppingAction`. Keep them in sync.
-- **Not compiled yet.** The code was checked against the Geant4 11.2.2 sources, but not built against a full ROOT + Geant4 install.
+- **Not compiled yet.** The code was checked against the Geant4 10.2.3 and 11.2.2 sources, but not built against a full ROOT + Geant4 install.
 
 ## Code changes (`src/cosima`)
 
