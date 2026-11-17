@@ -61,6 +61,7 @@
 #include "G4LossTableManager.hh"  
 #include "G4NuclideTable.hh"
 #include "G4EmParameters.hh" // edited by Andrea Frassà, 11/10/26
+#include "G4Version.hh" // edited by Andrea Frassà, 11/17/26
 #include "G4GenericBiasingPhysics.hh" // edited by Andrea Frassà, 11/10/26
 
 // MEGAlib:
@@ -218,9 +219,12 @@ void MCPhysicsList::ConstructProcess()
   // Some EM constructors (e.g. G4EmStandardPhysics) merge them into one G4GammaGeneralProcess,
   // which is activated in their constructor. Thus switch it off here, after the constructors
   // and before the processes are built. This does not change the physics, only the speed a bit.
+  // (G4GammaGeneralProcess only exists since Geant4 10.5 - edited by Andrea Frassà, 11/17/26)
+#if G4VERSION_NUMBER >= 1050
   if (m_UsesForcedFirstInteraction == true) {
     G4EmParameters::Instance()->SetGeneralProcessActive(false);
   }
+#endif
   // <-- edited by Andrea Frassà, 11/10/26
 
   G4VModularPhysicsList::ConstructProcess();

@@ -38,9 +38,10 @@
 #include "G4ProcessManager.hh"
 #include "G4ProcessVector.hh"
 #include "G4VProcess.hh"
-#include "G4VDiscreteProcess.hh"
 #include "G4VEmProcess.hh"
 #include "G4HadronicProcess.hh"
+#include "G4HadronicProcessStore.hh"
+#include "G4Version.hh"
 #include "G4MaterialCutsCouple.hh"
 #include "G4Material.hh"
 #include "G4SystemOfUnits.hh"
@@ -268,24 +269,25 @@ bool MCForcedFirstInteractionOperator::SampleFirstInteraction(const G4Track* Tra
 /******************************************************************************
  * Return the macroscopic cross section (1/length) of a gamma process in the given material
  * EM processes: the same tables as used during tracking
+ * Works with Geant4 10.2 (required by MEGAlib) and 11.x (edited by Andrea Frassà, 11/17/26)
  */
 double MCForcedFirstInteractionOperator::GetCrossSection(G4VProcess* Process, const double Energy, const G4MaterialCutsCouple* Couple)
 {
   G4VEmProcess* EmProcess = dynamic_cast<G4VEmProcess*>(Process);
   if (EmProcess != nullptr) {
+#if G4VERSION_NUMBER >= 1110
     return EmProcess->GetCrossSection(Energy, Couple);
+#else
+    return EmProcess->CrossSectionPerVolume(Energy, Couple);
+#endif
   }
 
-  G4HadronicProcess* HadronicProcess = dynamic_cast<G4HadronicProcess*>(Process);
-  if (HadronicProcess != nullptr) {
-    return HadronicProcess->ComputeCrossSection(G4Gamma::Gamma(), Couple->GetMaterial(), Energy);
+  // Hadronic processes, e.g. photo-nuclear (the store finds the process via its sub type)
+  if (dynamic_cast<G4HadronicProcess*>(Process) != nullptr) {
+    return G4HadronicProcessStore::Instance()->GetCrossSectionPerVolume(G4Gamma::Gamma(), Energy, Process, Couple->GetMaterial());
   }
 
-  G4VDiscreteProcess* DiscreteProcess = dynamic_cast<G4VDiscreteProcess*>(Process);
-  if (DiscreteProcess != nullptr) {
-    return DiscreteProcess->GetCrossSection(Energy, Couple);
-  }
-
+  // Unknown process type: it is ignored in the sampling of the first interaction point
   return 0.0;
 }
 
